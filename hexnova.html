@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HEXNOVA // Digest Reactor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root {
+    --bg: #030410;
+    --panel-bg: rgba(11, 14, 28, 0.78);
+    --panel-bg-solid: #0b0e1c;
+    --line: rgba(130, 150, 255, 0.16);
+    --line-bright: rgba(150, 170, 255, 0.4);
+    --text: #eaf1ff;
+    --text-dim: #8590b8;
+    --text-faint: #454d73;
+    --cyan: #4bf1ff;
+    --violet: #b98bff;
+    --magenta: #ff5c9a;
+    --ok: #55f5c4;
+    --glow-cyan: rgba(75, 241, 255, 0.35);
+    --glow-violet: rgba(185, 139, 255, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ---------- Ambient background ---------- */
+  .field {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(600px 400px at 10% 0%, var(--glow-cyan) 0%, transparent 60%),
+      radial-gradient(700px 500px at 95% 100%, var(--glow-violet) 0%, transparent 60%),
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: auto, auto, 44px 44px, 44px 44px;
+    background-color: var(--bg);
+    opacity: 0.9;
+  }
+  .scanline {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(180deg, transparent 0%, rgba(120,180,255,0.05) 50%, transparent 100%);
+    background-size: 100% 220px;
+    animation: scan-drift 9s linear infinite;
+  }
+  @keyframes scan-drift {
+    0% { background-position: 0 -220px; }
+    100% { background-position: 0 100vh; }
+  }
+
+  /* ---------- Boot overlay ---------- */
+  #bootOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: #030410;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 8vh 8vw;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--cyan);
+    cursor: pointer;
+    transition: opacity 0.5s ease;
+  }
+  #bootOverlay.hide { opacity: 0; pointer-events: none; }
+  #bootOverlay p {
+    margin: 0 0 8px;
+    opacity: 0;
+    animation: boot-line 0.4s ease forwards;
+  }
+  #bootOverlay p:nth-child(1) { animation-delay: 0.05s; }
+  #bootOverlay p:nth-child(2) { animation-delay: 0.35s; color: var(--text-dim); }
+  #bootOverlay p:nth-child(3) { animation-delay: 0.75s; color: var(--text-dim); }
+  #bootOverlay p:nth-child(4) { animation-delay: 1.15s; color: var(--ok); }
+  @keyframes boot-line {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #bootOverlay { display: none; }
+  }
+
+  .wrap {
+    max-width: 940px;
+    margin: 0 auto;
+    padding: 44px 22px 90px;
+    position: relative;
+  }
+
+  /* corner HUD brackets framing the whole console */
+  .bracket {
+    position: fixed;
+    width: 26px;
+    height: 26px;
+    border: 2px solid var(--cyan);
+    opacity: 0.55;
+    z-index: 1;
+  }
+  .bracket.tl { top: 18px; left: 18px; border-right: none; border-bottom: none; }
+  .bracket.tr { top: 18px; right: 18px; border-left: none; border-bottom: none; border-color: var(--violet); }
+  .bracket.bl { bottom: 18px; left: 18px; border-right: none; border-top: none; border-color: var(--violet); }
+  .bracket.br { bottom: 18px; right: 18px; border-left: none; border-top: none; }
+  @media (max-width: 640px) { .bracket { display: none; } }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding-bottom: 26px;
+    margin-bottom: 34px;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0;
+    width: 140px; height: 1px;
+    background: linear-gradient(90deg, var(--cyan), transparent);
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  .brand { display: flex; align-items: center; gap: 16px; }
+
+  .brand-emblem {
+    width: 46px;
+    height: 46px;
+    position: relative;
+    background: conic-gradient(from 220deg, var(--cyan), var(--violet), var(--cyan));
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    flex-shrink: 0;
+    animation: emblem-pulse 3.2s ease-in-out infinite;
+  }
+  .brand-emblem::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    background: var(--bg);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  }
+  .brand-emblem::after {
+    content: '#';
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--text);
+  }
+  @keyframes emblem-pulse {
+    0%, 100% { filter: drop-shadow(0 0 4px var(--glow-cyan)); }
+    50% { filter: drop-shadow(0 0 14px var(--glow-violet)); }
+  }
+
+  .brand h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 25px;
+    font-weight: 900;
+    margin: 0;
+    letter-spacing: 0.06em;
+    background: linear-gradient(90deg, var(--cyan), var(--violet));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .brand p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .hud-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  .chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.03em;
+    padding: 6px 11px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%, 0 8px);
+    border: 1px solid;
+    white-space: nowrap;
+  }
+  .chip.ok { color: var(--ok); border-color: var(--ok); }
+  .chip.tag { color: var(--violet); border-color: var(--violet); }
+  .chip-dot { width: 6px; height: 6px; background: currentColor; box-shadow: 0 0 8px currentColor; flex-shrink: 0; }
+
+  /* ---------- Tabs ---------- */
+  .tabs { display: flex; gap: 6px; margin-bottom: 0; }
+  .tab {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 11px 20px;
+    background: rgba(11,14,28,0.5);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+    clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px);
+    letter-spacing: 0.02em;
+  }
+  .tab.active {
+    color: var(--text);
+    background: var(--panel-bg-solid);
+    border-color: var(--cyan);
+    box-shadow: 0 0 14px -4px var(--glow-cyan);
+  }
+
+  /* ---------- Panel ---------- */
+  .panel {
+    background: var(--panel-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--line-bright);
+    padding: 26px;
+    margin-bottom: 30px;
+    clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+    position: relative;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    background: rgba(3, 4, 16, 0.6);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.6;
+    padding: 14px;
+    resize: vertical;
+    outline: none;
+  }
+  textarea:focus { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 0 18px -6px var(--glow-cyan); }
+  textarea::placeholder { color: var(--text-faint); }
+
+  .dropzone {
+    border: 1.5px dashed var(--line-bright);
+    padding: 42px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .dropzone:hover, .dropzone.drag {
+    border-color: var(--cyan);
+    box-shadow: inset 0 0 24px -8px var(--glow-cyan);
+  }
+  .dropzone p { margin: 0; color: var(--text-dim); font-size: 13.5px; }
+  .dropzone .icon { font-size: 20px; margin-bottom: 12px; color: var(--violet); letter-spacing: 6px; }
+  .file-meta {
+    margin-top: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--violet);
+    display: none;
+  }
+  .file-meta.show { display: block; }
+
+  .panel-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 18px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .meta-line { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-faint); }
+
+  button.primary {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    background: linear-gradient(100deg, var(--cyan), var(--violet));
+    color: #030410;
+    border: none;
+    padding: 13px 28px;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+    clip-path: polygon(12px 0, 100% 0, 100% 100%, 0 100%, 0 12px);
+    box-shadow: 0 0 20px -6px var(--glow-violet);
+    transition: box-shadow 0.15s ease, transform 0.05s ease;
+  }
+  button.primary:hover { box-shadow: 0 0 28px -4px var(--glow-cyan); }
+  button.primary:active { transform: scale(0.98); }
+  button.primary:disabled { background: var(--text-faint); color: var(--bg); box-shadow: none; cursor: not-allowed; }
+
+  input[type=file] { display: none; }
+
+  /* ---------- Results ---------- */
+  .results-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; flex-wrap: wrap; gap: 6px; }
+  .results-head h2 { font-family: 'Orbitron', sans-serif; font-size: 14px; color: var(--text); font-weight: 700; margin: 0; letter-spacing: 0.04em; }
+  .results-head .avalanche { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--violet); }
+
+  .category { margin-bottom: 24px; }
+  .category-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    margin-bottom: 9px;
+    padding-left: 3px;
+    letter-spacing: 0.04em;
+  }
+  .category-label.legacy { color: var(--magenta); opacity: 0.8; }
+
+  .digest-row {
+    display: grid;
+    grid-template-columns: 96px 1fr auto;
+    align-items: center;
+    gap: 16px;
+    padding: 13px 16px;
+    background: rgba(9, 11, 22, 0.65);
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--line-bright);
+    margin-bottom: 5px;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+  .digest-row.legacy { border-left-color: rgba(255, 92, 154, 0.4); }
+  .digest-row.updated {
+    border-left-color: var(--cyan);
+    box-shadow: inset 0 0 18px -6px var(--glow-cyan), 0 0 12px -8px var(--glow-cyan);
+  }
+
+  .algo-name { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; font-weight: 700; color: var(--text); }
+  .algo-bits { display: block; font-size: 10px; color: var(--text-faint); font-weight: 400; margin-top: 2px; }
+
+  .digest-value { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--text-dim); word-break: break-all; line-height: 1.5; }
+  .digest-value.empty { color: var(--text-faint); font-style: normal; }
+
+  .copy-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    background: transparent;
+    border: 1px solid var(--line-bright);
+    color: var(--text-dim);
+    padding: 7px 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+  }
+  .copy-btn:hover { border-color: var(--cyan); color: var(--text); box-shadow: 0 0 10px -4px var(--glow-cyan); }
+  .copy-btn.copied { border-color: var(--ok); color: var(--ok); }
+
+  footer {
+    margin-top: 44px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text-faint);
+    line-height: 1.8;
+  }
+  footer .credit { color: var(--violet); }
+  footer .credit b { color: var(--cyan); font-weight: 700; letter-spacing: 0.03em; }
+
+  @media (max-width: 600px) {
+    .digest-row { grid-template-columns: 1fr; gap: 8px; }
+    .copy-btn { justify-self: start; }
+    .hud-chips { align-items: flex-start; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="bootOverlay">
+  <p>&gt; INITIALIZING HEXNOVA...</p>
+  <p>&gt; LOADING CRYPTOGRAPHIC MODULES: CRC32 · MD5 · SHA-1 · SHA-2 · SHA-3</p>
+  <p>&gt; BINDING TO LOCAL WEB CRYPTO ENGINE...</p>
+  <p>&gt; SYSTEM READY — click to enter</p>
+</div>
+
+<div class="field"></div>
+<div class="scanline"></div>
+<span class="bracket tl"></span>
+<span class="bracket tr"></span>
+<span class="bracket bl"></span>
+<span class="bracket br"></span>
+
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-emblem"></div>
+      <div>
+        <h1>HEXNOVA</h1>
+        <p>Digest reactor — text &amp; file hashing console</p>
+      </div>
+    </div>
+    <div class="hud-chips">
+      <div class="chip ok"><span class="chip-dot"></span>LOCAL EXECUTION ONLY</div>
+      <div class="chip tag"><span class="chip-dot"></span>OPERATOR // SHUBHAM</div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="text" id="tabText">TEXT INPUT</div>
+    <div class="tab" data-tab="file" id="tabFile">FILE INPUT</div>
+  </div>
+
+  <div class="panel">
+    <div id="paneText">
+      <textarea id="textInput" placeholder="Type or paste data to hash..."></textarea>
+    </div>
+    <div id="paneFile" style="display:none;">
+      <div class="dropzone" id="dropzone">
+        <div class="icon">◈ ◇ ◈</div>
+        <p>Drop a file here, or click to browse</p>
+        <div class="file-meta" id="fileMeta"></div>
+      </div>
+      <input type="file" id="fileInput">
+    </div>
+    <div class="panel-foot">
+      <span class="meta-line" id="inputMeta">0 bytes</span>
+      <button class="primary" id="calcBtn">COMPUTE DIGESTS</button>
+    </div>
+  </div>
+
+  <div class="results-head">
+    <h2>DIGEST OUTPUT</h2>
+    <span class="avalanche" id="avalancheLabel"></span>
+  </div>
+
+  <div id="resultsContainer"></div>
+
+  <footer>
+    <div>HEXNOVA runs entirely client-side via Web Crypto and local JS — nothing you type or upload is transmitted anywhere.</div>
+    <div>MD5, SHA-1, and CRC-32 are shown for legacy/interoperability reference only; treat them as broken for any security purpose.</div>
+    <div class="credit">HEXNOVA — Made by <b>SHUBHAM</b></div>
+  </footer>
+
+</div>
+
+<script>
+  // Boot sequence: one deliberate entrance moment, dismissable early
+  const boot = document.getElementById('bootOverlay');
+  function dismissBoot() { boot.classList.add('hide'); setTimeout(() => boot.remove(), 550); }
+  const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReduced) {
+    boot.remove();
+  } else {
+    boot.addEventListener('click', dismissBoot);
+    setTimeout(dismissBoot, 1900);
+  }
+</script>
+
+<script>
+// ============================================================
+// Verified hash implementations (tested against Node crypto
+// module test vectors for MD5, SHA3-256, SHA3-512, CRC32)
+// ============================================================
+
+// ---------- CRC32 ----------
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+function crc32Hex(bytes) {
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) crc = CRC32_TABLE[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return ((crc ^ 0xFFFFFFFF) >>> 0).toString(16).padStart(8, '0');
+}
+
+// ---------- MD5 (RFC 1321) ----------
+function md5Hex(bytes) {
+  function rotl(x, c) { return (x << c) | (x >>> (32 - c)); }
+  const s = [7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+             5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+             4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+             6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+  const K = new Uint32Array(64);
+  for (let i = 0; i < 64; i++) K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296) >>> 0;
+
+  const origLenBits = BigInt(bytes.length) * 8n;
+  const padLen = ((56 - (bytes.length + 1) % 64) + 64) % 64;
+  const total = bytes.length + 1 + padLen + 8;
+  const msg = new Uint8Array(total);
+  msg.set(bytes, 0);
+  msg[bytes.length] = 0x80;
+  for (let i = 0; i < 8; i++) msg[total - 8 + i] = Number((origLenBits >> BigInt(8 * i)) & 0xFFn);
+
+  let a0 = 0x67452301, b0 = 0xefcdab89, c0 = 0x98badcfe, d0 = 0x10325476;
+  const view = new DataView(msg.buffer);
+  for (let chunkStart = 0; chunkStart < total; chunkStart += 64) {
+    const M = new Uint32Array(16);
+    for (let j = 0; j < 16; j++) M[j] = view.getUint32(chunkStart + j * 4, true);
+    let A = a0, B = b0, C = c0, D = d0;
+    for (let i = 0; i < 64; i++) {
+      let F, g;
+      if (i < 16) { F = (B & C) | (~B & D); g = i; }
+      else if (i < 32) { F = (D & B) | (~D & C); g = (5 * i + 1) % 16; }
+      else if (i < 48) { F = B ^ C ^ D; g = (3 * i + 5) % 16; }
+      else { F = C ^ (B | ~D); g = (7 * i) % 16; }
+      F = (F + A + K[i] + M[g]) >>> 0;
+      A = D; D = C; C = B;
+      B = (B + rotl(F, s[i])) >>> 0;
+    }
+    a0 = (a0 + A) >>> 0; b0 = (b0 + B) >>> 0; c0 = (c0 + C) >>> 0; d0 = (d0 + D) >>> 0;
+  }
+  const out = new Uint8Array(16);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, a0, true); dv.setUint32(4, b0, true);
+  dv.setUint32(8, c0, true); dv.setUint32(12, d0, true);
+  return toHex(out);
+}
+
+function toHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ---------- SHA-3 / Keccak ----------
+const KECCAK_RC = [
+  0x0000000000000001n,0x0000000000008082n,0x800000000000808an,0x8000000080008000n,
+  0x000000000000808bn,0x0000000080000001n,0x8000000080008081n,0x8000000000008009n,
+  0x000000000000008an,0x0000000000000088n,0x0000000080008009n,0x000000008000000an,
+  0x000000008000808bn,0x800000000000008bn,0x8000000000008089n,0x8000000000008003n,
+  0x8000000000008002n,0x8000000000000080n,0x000000000000800an,0x800000008000000an,
+  0x8000000080008081n,0x8000000000008080n,0x0000000080000001n,0x8000000080008008n
+];
+const ROT = [[0,36,3,41,18],[1,44,10,45,2],[62,6,43,15,61],[28,55,25,21,56],[27,20,39,8,14]];
+const MASK64 = 0xFFFFFFFFFFFFFFFFn;
+function rotl64(x, n) {
+  n = BigInt(n) % 64n;
+  if (n === 0n) return x & MASK64;
+  return ((x << n) | (x >> (64n - n))) & MASK64;
+}
+function keccakF1600(state) {
+  for (let round = 0; round < 24; round++) {
+    const C = new Array(5);
+    for (let x = 0; x < 5; x++) C[x] = state[x] ^ state[x+5] ^ state[x+10] ^ state[x+15] ^ state[x+20];
+    const D = new Array(5);
+    for (let x = 0; x < 5; x++) D[x] = C[(x+4)%5] ^ rotl64(C[(x+1)%5], 1);
+    for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) state[x+5*y] ^= D[x];
+    const B = new Array(25).fill(0n);
+    for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) {
+      const newX = y, newY = (2*x+3*y)%5;
+      B[newX+5*newY] = rotl64(state[x+5*y], ROT[x][y]);
+    }
+    for (let x = 0; x < 5; x++) for (let y = 0; y < 5; y++) {
+      state[x+5*y] = B[x+5*y] ^ ((~B[(x+1)%5+5*y] & MASK64) & B[(x+2)%5+5*y]);
+    }
+    state[0] ^= KECCAK_RC[round];
+  }
+}
+function sha3Hex(bytes, outputBits) {
+  const rateBits = 1600 - 2 * outputBits;
+  const rateBytes = rateBits / 8;
+  const msgLen = bytes.length;
+  const padLen = rateBytes - (msgLen % rateBytes);
+  const padded = new Uint8Array(msgLen + padLen);
+  padded.set(bytes, 0);
+  if (padLen === 1) padded[msgLen] = 0x86;
+  else { padded[msgLen] = 0x06; padded[padded.length - 1] = 0x80; }
+
+  const state = new Array(25).fill(0n);
+  for (let offset = 0; offset < padded.length; offset += rateBytes) {
+    for (let i = 0; i < rateBytes / 8; i++) {
+      let lane = 0n;
+      for (let b = 0; b < 8; b++) lane |= BigInt(padded[offset + i*8 + b]) << BigInt(8*b);
+      state[i] ^= lane;
+    }
+    keccakF1600(state);
+  }
+  const outBytes = outputBits / 8;
+  const out = new Uint8Array(outBytes);
+  let produced = 0;
+  while (produced < outBytes) {
+    for (let i = 0; i < rateBytes/8 && produced < outBytes; i++) {
+      const lane = state[i];
+      for (let b = 0; b < 8 && produced < outBytes; b++) out[produced++] = Number((lane >> BigInt(8*b)) & 0xFFn);
+    }
+    if (produced < outBytes) keccakF1600(state);
+  }
+  return toHex(out);
+}
+
+// ---------- Web Crypto wrapper for SHA-1 / SHA-256 / SHA-384 / SHA-512 ----------
+async function webCryptoHex(algo, bytes) {
+  const digest = await crypto.subtle.digest(algo, bytes);
+  return toHex(new Uint8Array(digest));
+}
+
+// ============================================================
+// Algorithm registry
+// ============================================================
+const ALGORITHMS = [
+  { id: 'crc32',    name: 'CRC-32',    bits: 32,  category: 'Checksum',        legacy: true,  fn: (b) => crc32Hex(b) },
+  { id: 'md5',      name: 'MD5',       bits: 128, category: 'Legacy — broken', legacy: true,  fn: (b) => md5Hex(b) },
+  { id: 'sha1',     name: 'SHA-1',     bits: 160, category: 'Legacy — broken', legacy: true,  fn: (b) => webCryptoHex('SHA-1', b) },
+  { id: 'sha256',   name: 'SHA-256',   bits: 256, category: 'SHA-2 family',    legacy: false, fn: (b) => webCryptoHex('SHA-256', b) },
+  { id: 'sha384',   name: 'SHA-384',   bits: 384, category: 'SHA-2 family',    legacy: false, fn: (b) => webCryptoHex('SHA-384', b) },
+  { id: 'sha512',   name: 'SHA-512',   bits: 512, category: 'SHA-2 family',    legacy: false, fn: (b) => webCryptoHex('SHA-512', b) },
+  { id: 'sha3_256', name: 'SHA3-256',  bits: 256, category: 'SHA-3 / Keccak',  legacy: false, fn: (b) => sha3Hex(b, 256) },
+  { id: 'sha3_512', name: 'SHA3-512',  bits: 512, category: 'SHA-3 / Keccak',  legacy: false, fn: (b) => sha3Hex(b, 512) },
+];
+
+const CATEGORY_ORDER = ['Checksum', 'Legacy — broken', 'SHA-2 family', 'SHA-3 / Keccak'];
+
+// ============================================================
+// UI wiring
+// ============================================================
+const state = { mode: 'text', fileBytes: null, fileName: '', lastResults: {} };
+
+const tabText = document.getElementById('tabText');
+const tabFile = document.getElementById('tabFile');
+const paneText = document.getElementById('paneText');
+const paneFile = document.getElementById('paneFile');
+const textInput = document.getElementById('textInput');
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileMeta = document.getElementById('fileMeta');
+const inputMeta = document.getElementById('inputMeta');
+const calcBtn = document.getElementById('calcBtn');
+const resultsContainer = document.getElementById('resultsContainer');
+const avalancheLabel = document.getElementById('avalancheLabel');
+
+function renderSkeleton() {
+  resultsContainer.innerHTML = '';
+  for (const cat of CATEGORY_ORDER) {
+    const catAlgos = ALGORITHMS.filter(a => a.category === cat);
+    const catDiv = document.createElement('div');
+    catDiv.className = 'category';
+    const label = document.createElement('div');
+    label.className = 'category-label' + (catAlgos[0].legacy ? ' legacy' : '');
+    label.textContent = cat;
+    catDiv.appendChild(label);
+    for (const algo of catAlgos) {
+      const row = document.createElement('div');
+      row.className = 'digest-row' + (algo.legacy ? ' legacy' : '');
+      row.id = 'row-' + algo.id;
+      row.innerHTML = `
+        <div class="algo-name">${algo.name}<span class="algo-bits">${algo.bits}-bit</span></div>
+        <div class="digest-value empty" id="val-${algo.id}">— awaiting input —</div>
+        <button class="copy-btn" id="copy-${algo.id}" disabled>COPY</button>
+      `;
+      catDiv.appendChild(row);
+    }
+    resultsContainer.appendChild(catDiv);
+  }
+}
+renderSkeleton();
+
+tabText.addEventListener('click', () => {
+  state.mode = 'text';
+  tabText.classList.add('active'); tabFile.classList.remove('active');
+  paneText.style.display = ''; paneFile.style.display = 'none';
+  updateInputMeta();
+});
+tabFile.addEventListener('click', () => {
+  state.mode = 'file';
+  tabFile.classList.add('active'); tabText.classList.remove('active');
+  paneFile.style.display = ''; paneText.style.display = 'none';
+  updateInputMeta();
+});
+
+textInput.addEventListener('input', updateInputMeta);
+
+function updateInputMeta() {
+  if (state.mode === 'text') {
+    const bytes = new TextEncoder().encode(textInput.value).length;
+    inputMeta.textContent = `${bytes} byte${bytes === 1 ? '' : 's'}`;
+  } else {
+    inputMeta.textContent = state.fileBytes ? `${state.fileBytes.length} bytes — ${state.fileName}` : '0 bytes';
+  }
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.fileBytes = new Uint8Array(reader.result);
+    state.fileName = file.name;
+    fileMeta.textContent = `${file.name} — ${(file.size / 1024).toFixed(1)} KB`;
+    fileMeta.classList.add('show');
+    updateInputMeta();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function levenshteinSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return null;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diff++;
+  return Math.round((diff / a.length) * 100);
+}
+
+calcBtn.addEventListener('click', async () => {
+  let bytes;
+  if (state.mode === 'text') {
+    bytes = new TextEncoder().encode(textInput.value);
+  } else {
+    if (!state.fileBytes) return;
+    bytes = state.fileBytes;
+  }
+
+  calcBtn.disabled = true;
+  calcBtn.textContent = 'COMPUTING...';
+
+  const changedPct = [];
+
+  for (const algo of ALGORITHMS) {
+    const valEl = document.getElementById('val-' + algo.id);
+    const rowEl = document.getElementById('row-' + algo.id);
+    const copyEl = document.getElementById('copy-' + algo.id);
+    let hex;
+    try {
+      hex = await algo.fn(bytes);
+    } catch (err) {
+      hex = 'ERROR: ' + err.message;
+    }
+
+    const prev = state.lastResults[algo.id];
+    const pct = levenshteinSimilarity(prev, hex);
+    if (pct !== null) changedPct.push(pct);
+
+    valEl.textContent = hex;
+    valEl.classList.remove('empty');
+    rowEl.classList.add('updated');
+    setTimeout(() => rowEl.classList.remove('updated'), 900);
+
+    copyEl.disabled = false;
+    copyEl.onclick = () => {
+      navigator.clipboard.writeText(hex);
+      copyEl.textContent = 'COPIED';
+      copyEl.classList.add('copied');
+      setTimeout(() => { copyEl.textContent = 'COPY'; copyEl.classList.remove('copied'); }, 1200);
+    };
+
+    state.lastResults[algo.id] = hex;
+  }
+
+  if (changedPct.length) {
+    const avg = Math.round(changedPct.reduce((a, b) => a + b, 0) / changedPct.length);
+    avalancheLabel.textContent = `avalanche vs. previous input: ~${avg}% of digest characters changed`;
+  }
+
+  calcBtn.disabled = false;
+  calcBtn.textContent = 'COMPUTE DIGESTS';
+});
+
+updateInputMeta();
+</script>
+</body></html>
